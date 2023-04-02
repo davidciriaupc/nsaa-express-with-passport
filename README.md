@@ -42,4 +42,5 @@ It is a parallelization parameter. 𝑝 instances of the mixing function are run
 - Parallelly, which requires 𝑝 times the memory and effective CPU time, but does not increase wall clock time.
 
 # Sources
+- https://github.com/juanelas/scrypt-mcf
 - https://words.filippo.io/the-scrypt-parameters/
