@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
 const fortune = require('fortune-teller')
 const scryptMcf = require('scrypt-mcf')
+const { performance } = require('perf_hooks');
 
 const FileDatabase = require('./database')
 const file_database = new FileDatabase('database.json')
@@ -54,8 +55,10 @@ passport.use('username-password', new LocalStrategy(
     const user = file_database.getUser(username)
     let db_password;
     if (user) { db_password = user['password'] }
-
+    const start = performance.now()
     if (user && db_password && await scryptMcf.verify(password, db_password)) {
+      const end = performance.now()
+      console.log(`Time to compute hash: ${Math.round(end - start).toFixed(0)} milliseconds`)
       const user = {
         username: username
       }

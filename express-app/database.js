@@ -15,8 +15,9 @@ class FileDatabase {
             return null
         }
 
-        database['users'][name] = {
-            'password': await scryptMcf.hash(password)
+        database['users'][name] = { 
+            'password': await scryptMcf.hash(password, { derivedKeyLength: 32, scryptParams: { logN: 17, r: 8, p: 1 } }) // fast setup (<1s).
+            // 'password': await scryptMcf.hash(password, { derivedKeyLength: 32, scryptParams: { logN: 19, r: 15, p: 1 } }) // slow setup (>3s).
         }
 
         this.writeJsonFile(database)
