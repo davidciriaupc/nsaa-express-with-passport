@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Register</title>
+</head>
+
+<body>
+    <p><strong>Want to listen to the fortune-teller server?</strong></p>
+    <p>Please register and then login</p>
+    <form action="/register" method="post">  <!-- when the formulary is submitted, it will be POSTed to /register-->
+        <div>
+            <label>Username:</label>
+            <input type="text" name="username" />  <!-- the name MUST match the one defined in the local 'username-password' startegy -->
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" name="password" /> <!-- the name MUST match the one defined in the local 'username-password' startegy -->
+        </div>
+        <div>
+            <input type="submit" value="Register" />
+        </div>
+    </form>
+    <form action="/login" method="get"><input type="submit" value="I already have a user"></input></form>
+</body>
+
+</html>

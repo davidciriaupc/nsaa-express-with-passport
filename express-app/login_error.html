@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+    <style>
+        .error-div{
+            background-color: #d39292;
+        }
+    </style>
+</head>
+
+<body>
+    <p><strong>Want to listen to the fortune-teller server?</strong></p>
+    <p>Please login to proceed</p>
+    <form action="/login" method="post">  <!-- when the formulary is submitted, it will be POSTed to /login-->
+        <div>
+            <label>Username:</label>
+            <input type="text" name="username" />  <!-- the name MUST match the one defined in the local 'username-password' startegy -->
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" name="password" /> <!-- the name MUST match the one defined in the local 'username-password' startegy -->
+        </div>
+        <div>
+            <input type="submit" value="Log In" />
+        </div>
+    </form>
+    <div class="error-div">Login error, try again</div>
+    <form action="/register" method="get"><input type="submit" value="I want to register"></input></form>
+    <form action="/google" method="get"><input type="submit" value="Login with Google"></input></form>
+</body>
+
+</html>
