@@ -18,8 +18,8 @@ const jwtSecret = require('crypto').randomBytes(16) // 16*8=256 random bits
 const app = express()
 const port = 3000
 
-const GOOGLE_CLIENT_ID = '***REMOVED***'
-const GOOGLE_CLIENT_SECRET = '***REMOVED***'
+const GOOGLE_CLIENT_ID = ''
+const GOOGLE_CLIENT_SECRET = ''
 
 app.use(cookieParser());
 
