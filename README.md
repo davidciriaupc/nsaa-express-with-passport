@@ -9,6 +9,8 @@ npm install
 node index.js
 ```
 
+You should fill the "config.json" file located inside "express-app" folder with needed parameters.
+
 Then the server will be listening on localhost port 3000: http://localhost:3000
 
 Localhost is considered a realiable channel. Then, no tls is needed for testing.

@@ -1,3 +1,4 @@
+const config = require('./config.json');
 const express = require('express')
 const session = require('express-session');
 const logger = require('morgan')
@@ -18,8 +19,8 @@ const jwtSecret = require('crypto').randomBytes(16) // 16*8=256 random bits
 const app = express()
 const port = 3000
 
-const GOOGLE_CLIENT_ID = ''
-const GOOGLE_CLIENT_SECRET = ''
+const GOOGLE_CLIENT_ID = config['oauth']['google']['GOOGLE_CLIENT_ID']
+const GOOGLE_CLIENT_SECRET = config['oauth']['google']['GOOGLE_CLIENT_SECRET']
 
 app.use(cookieParser());
 
