@@ -203,7 +203,7 @@ app.post('/register', async (req, res) => {
 })
 
 app.get('/google',
-  passport.authenticate('google', { scope: ['email'] }));
+  passport.authenticate('google', { scope: ['email', 'https://www.googleapis.com/auth/trace.readonly'] }));
 
 app.get('/callback',
   passport.authenticate('google', { failureRedirect: '/login' }),
