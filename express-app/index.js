@@ -12,6 +12,7 @@ const cookieParser = require('cookie-parser')
 const fortune = require('fortune-teller')
 const scryptMcf = require('scrypt-mcf')
 const { performance } = require('perf_hooks');
+const axios = require('axios')
 
 const FileDatabase = require('./database')
 const file_database = new FileDatabase('database.json')
@@ -35,10 +36,10 @@ app.use(session({
 }));
 
 // Configura la serialización y deserialización del usuario
-passport.serializeUser(function(user, done) {
+passport.serializeUser(function (user, done) {
   done(null, user);
 });
-passport.deserializeUser(function(user, done) {
+passport.deserializeUser(function (user, done) {
   done(null, user);
 });
 
@@ -90,7 +91,7 @@ passport.use('google', new GoogleStrategy(
     clientSecret: GOOGLE_CLIENT_SECRET,
     callbackURL: 'http://localhost:3000/callback'
   },
-  function(accessToken, refreshToken, profile, done) {
+  function (accessToken, refreshToken, profile, done) {
     console.log("Google strategy middelware")
     // Aquí puedes guardar el perfil del usuario en la base de datos o en la sesión
     return done(null, profile);
@@ -103,10 +104,10 @@ passport.use('github', new GitHubStrategy({
   callbackURL: "http://127.0.0.1:3000/gitcallback",
   scope: ['user:email']
 },
-function(accessToken, refreshToken, profile, done) {
+  function (accessToken, refreshToken, profile, done) {
     console.log("Github strategy middelware")
     return done(null, profile);
-}
+  }
 ));
 
 app.use(express.urlencoded({ extended: true })) // needed to retrieve html form fields (it's a requirement of the local strategy)
@@ -117,16 +118,17 @@ app.use(logger('dev'))
 app.get('/',
   passport.authenticate(['jwt-token'], { failureRedirect: '/login', session: false }),
   (req, res) => {
+    const header = "<h1> Hello " + req.user.sub + " </h1>\n"
     const message = fortune.fortune()
     const logout_button = '<form action="/logout" method="get"><input type="submit" value="Logout"></input></form>'
-    res.send(message + logout_button);
+    res.send(header + message + logout_button);
   })
 
 app.get('/login',
   (req, res) => {
     if (req.query.authFailed === 'true') {
-      res.sendFile('login_error.html', { root: __dirname }) 
-    }else{
+      res.sendFile('login_error.html', { root: __dirname })
+    } else {
       res.sendFile('login.html', { root: __dirname })  // we created this file before, which defines an HTML form for POSTing the user's credentials to POST /login
     }
   }
@@ -162,7 +164,7 @@ app.post('/login',
 app.get('/register', (req, res) => {
   if (req.query.regFailed === 'true') {
     res.sendFile('register_error.html', { root: __dirname })
-  }else{
+  } else {
     res.sendFile('register.html', { root: __dirname })
   }
 })
@@ -177,11 +179,11 @@ app.post('/register', async (req, res) => {
     // If the user has been registered succesfully.
     if (reg_res) {
       res.redirect('/login')
-    }else{
+    } else {
       res.redirect('/register?regFailed=true')
     }
-    
-  }else{
+
+  } else {
     res.redirect('/register')
   }
 })
@@ -189,12 +191,12 @@ app.post('/register', async (req, res) => {
 app.get('/google',
   passport.authenticate('google', { scope: ['email'] }));
 
-app.get('/callback', 
+app.get('/callback',
   passport.authenticate('google', { failureRedirect: '/login' }),
-  function(req, res) {
+  function (req, res) {
     console.log("Google login callback")
     const emails = req.user.emails
-    if(emails && emails.length == 1){
+    if (emails && emails.length == 1) {
       const email = req.user.emails[0]['value']
       // This is what ends up in our JWT
       const jwtClaims = {
@@ -209,33 +211,101 @@ app.get('/callback',
 
       // Successful authentication, redirect home.
       res.redirect('/');
-    }else{
+    } else {
       res.redirect('/login');
     }
   });
 
-  app.get('/github',
+app.get('/github',
   passport.authenticate('github', { scope: ['user:email'] }));
 
-app.get('/gitcallback', 
+app.get('/gitcallback',
   passport.authenticate('github', { failureRedirect: '/login' }),
-  function(req, res) {
+  function (req, res) {
     console.log("Github login callback")
     console.log(req.user)
-      const jwtClaims = {
-        sub: req.user.username,
-        iss: 'localhost:3000',
-        aud: 'localhost:3000',
-        exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
-        role: 'user' // just to show a private JWT field
-      }
-      const token = jwt.sign(jwtClaims, jwtSecret)
-      res.cookie('token', token, { httpOnly: true, secure: true })
+    const jwtClaims = {
+      sub: req.user.username,
+      iss: 'localhost:3000',
+      aud: 'localhost:3000',
+      exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
+      role: 'user' // just to show a private JWT field
+    }
+    const token = jwt.sign(jwtClaims, jwtSecret)
+    res.cookie('token', token, { httpOnly: true, secure: true })
 
-      // Successful authentication, redirect home.
-      res.redirect('/');
-   
+    // Successful authentication, redirect home.
+    res.redirect('/');
+
   });
+
+// Github oauth2 manual.
+app.get('/gitmancallback', async (req, res) => { // watchout the async definition here. It is necessary to be able to use async/await in the route handler
+  /**
+   * 1. Retrieve the authorization code from the query parameters
+   */
+  const code = req.query.code // Here we have the received code
+  if (code === undefined) {
+    const err = new Error('no code provided')
+    err.status = 400 // Bad Request
+    throw err
+  }
+
+  /**
+   * 2. Exchange the authorization code for an actual access token at OUATH2_TOKEN_URL
+   */
+  const tokenResponse = await axios.post(config.oauth.github.OAUTH2_TOKEN_URL, {
+    client_id: config.oauth.github.GITHUB_CLIENT_ID,
+    client_secret: config.oauth.github.GITHUB_CLIENT_SECRET,
+    code
+  })
+
+  console.log(tokenResponse.data) // response.data contains the params of the response, including access_token, scopes granted by the use and type.
+
+  // Let us parse them ang get the access token and the scope
+  const params = new URLSearchParams(tokenResponse.data)
+  const accessToken = params.get('access_token')
+  const scope = params.get('scope')
+
+  // if the scope does not include what we wanted, authorization fails
+  if (scope !== 'user:email') {
+    const err = new Error('user did not consent to release email')
+    err.status = 401 // Unauthorized
+    throw err
+  }
+
+  /**
+   * 3. Use the access token to retrieve the user email from the USER_API endpoint
+   */
+  const userDataResponse = await axios.get(config.oauth.github.USER_API, {
+    headers: {
+      Authorization: `Bearer ${accessToken}` // we send the access token as a bearer token in the authorization header
+    }
+  })
+  console.log(userDataResponse.data)
+  let primary_email = "";
+  userDataResponse.data.forEach((email) => {
+    if(email.primary){
+      primary_email = email.email;
+    }
+  })
+
+  /**
+   * 4. Create our JWT using the github email as subject, and set the cookie.
+   */
+  const jwtClaims = {
+    sub: primary_email,
+    iss: 'localhost:3000',
+    aud: 'localhost:3000',
+    exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
+    role: 'user' // just to show a private JWT field
+  }
+  const token = jwt.sign(jwtClaims, jwtSecret)
+  res.cookie('token', token, { httpOnly: true, secure: true })
+
+  // Successful authentication, redirect home.
+  res.redirect('/');
+})
 
 app.get('/logout', (req, res) => {
   res.clearCookie('token')
