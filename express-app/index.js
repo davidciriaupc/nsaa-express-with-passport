@@ -6,6 +6,7 @@ const passport = require('passport')
 const LocalStrategy = require('passport-local').Strategy
 const JWTStrategy = require('passport-jwt').Strategy
 const GoogleStrategy = require('passport-google-oauth20').Strategy
+const GitHubStrategy = require('passport-github2').Strategy
 const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
 const fortune = require('fortune-teller')
@@ -21,6 +22,9 @@ const port = 3000
 
 const GOOGLE_CLIENT_ID = config['oauth']['google']['GOOGLE_CLIENT_ID']
 const GOOGLE_CLIENT_SECRET = config['oauth']['google']['GOOGLE_CLIENT_SECRET']
+
+const GITHUB_CLIENT_ID = config['oauth']['github']['GITHUB_CLIENT_ID']
+const GITHUB_CLIENT_SECRET = config['oauth']['github']['GITHUB_CLIENT_SECRET']
 
 app.use(cookieParser());
 
@@ -93,6 +97,18 @@ passport.use('google', new GoogleStrategy(
   }
 ))
 
+passport.use('github', new GitHubStrategy({
+  clientID: GITHUB_CLIENT_ID,
+  clientSecret: GITHUB_CLIENT_SECRET,
+  callbackURL: "http://127.0.0.1:3000/gitcallback",
+  scope: ['user:email']
+},
+function(accessToken, refreshToken, profile, done) {
+    console.log("Github strategy middelware")
+    return done(null, profile);
+}
+));
+
 app.use(express.urlencoded({ extended: true })) // needed to retrieve html form fields (it's a requirement of the local strategy)
 app.use(passport.initialize())  // we load the passport auth middleware to our express application. It should be loaded before any route.
 
@@ -125,8 +141,9 @@ app.post('/login',
       sub: req.user.username,
       iss: 'localhost:3000',
       aud: 'localhost:3000',
-      exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
-      role: 'user' // just to show a private JWT field
+      exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7dias×24horas×60minutos×60segundos=604800s) from now
+      role: 'user', // just to show a private JWT field,
+      exam: 'Ciria'
     }
 
     // generate a signed json web token. By default the signing algorithm is HS256 (HMAC-SHA256), i.e. we will 'sign' with a symmetric secret
@@ -195,6 +212,29 @@ app.get('/callback',
     }else{
       res.redirect('/login');
     }
+  });
+
+  app.get('/github',
+  passport.authenticate('github', { scope: ['user:email'] }));
+
+app.get('/gitcallback', 
+  passport.authenticate('github', { failureRedirect: '/login' }),
+  function(req, res) {
+    console.log("Github login callback")
+    console.log(req.user)
+      const jwtClaims = {
+        sub: req.user.username,
+        iss: 'localhost:3000',
+        aud: 'localhost:3000',
+        exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
+        role: 'user' // just to show a private JWT field
+      }
+      const token = jwt.sign(jwtClaims, jwtSecret)
+      res.cookie('token', token, { httpOnly: true, secure: true })
+
+      // Successful authentication, redirect home.
+      res.redirect('/');
+   
   });
 
 app.get('/logout', (req, res) => {
