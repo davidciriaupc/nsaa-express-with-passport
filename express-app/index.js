@@ -6,6 +6,7 @@ const passport = require('passport')
 const LocalStrategy = require('passport-local').Strategy
 const JWTStrategy = require('passport-jwt').Strategy
 const GoogleStrategy = require('passport-google-oauth20').Strategy
+const GoogleOIDCStrategy = require('passport-google-oidc');
 const GitHubStrategy = require('passport-github2').Strategy
 const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
@@ -97,6 +98,19 @@ passport.use('google', new GoogleStrategy(
     return done(null, profile);
   }
 ))
+
+passport.use('google-oidc', new GoogleOIDCStrategy(
+  {
+    clientID: config.oauth.google.GOOGLE_CLIENT_ID,
+    clientSecret: config.oauth.google.GOOGLE_CLIENT_SECRET,
+    callbackURL: 'http://localhost:3000/callback-oidc'
+  },
+  function verify(issuer, profile, cb) {
+    console.log(profile);
+    console.log("Google OIDC strategy");
+    return cb(null, profile);
+  })
+);
 
 passport.use('github', new GitHubStrategy({
   clientID: GITHUB_CLIENT_ID,
@@ -216,6 +230,34 @@ app.get('/callback',
     }
   });
 
+app.get('/google-oidc',
+  passport.authenticate('google-oidc', {scope: ['email']}));
+
+app.get('/callback-oidc',
+  passport.authenticate('google-oidc', { failureRedirect: '/login' }),
+  function (req, res) {
+    console.log("Google login callback")
+    const emails = req.user.emails
+    if (emails && emails.length == 1) {
+      const email = req.user.emails[0]['value']
+      // This is what ends up in our JWT
+      const jwtClaims = {
+        sub: email,
+        iss: 'localhost:3000',
+        aud: 'localhost:3000',
+        exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
+        role: 'user' // just to show a private JWT field
+      }
+      const token = jwt.sign(jwtClaims, jwtSecret)
+      res.cookie('token', token, { httpOnly: true, secure: true })
+
+      // Successful authentication, redirect home.
+      res.redirect('/');
+    } else {
+      res.redirect('/login');
+    }
+  });
+
 app.get('/github',
   passport.authenticate('github', { scope: ['user:email'] }));
 
@@ -285,7 +327,7 @@ app.get('/gitmancallback', async (req, res) => { // watchout the async definitio
   console.log(userDataResponse.data)
   let primary_email = "";
   userDataResponse.data.forEach((email) => {
-    if(email.primary){
+    if (email.primary) {
       primary_email = email.email;
     }
   })
