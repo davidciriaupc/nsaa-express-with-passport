@@ -249,7 +249,7 @@ app.get('/callback',
   });
 
 app.get('/passport-oidc',
-passport.authenticate('passport-oidc', {scope: ['email']}));
+passport.authenticate('passport-oidc', {scope: ['email', 'openid']}));
 
 app.get('/callback-passport-oidc',
   passport.authenticate('passport-oidc', { failureRedirect: '/login' }),
@@ -277,7 +277,7 @@ app.get('/callback-passport-oidc',
   });
 
 app.get('/google-oidc',
-  passport.authenticate('google-oidc', {scope: ['email']}));
+  passport.authenticate('google-oidc', {scope: ['email', 'openid']}));
 
 app.get('/callback-oidc',
   passport.authenticate('google-oidc', { failureRedirect: '/login' }),
