@@ -6,6 +6,7 @@ const passport = require('passport')
 const LocalStrategy = require('passport-local').Strategy
 const JWTStrategy = require('passport-jwt').Strategy
 const GoogleStrategy = require('passport-google-oauth20').Strategy
+const PassportOIDCStrategy = require('passport-openidconnect').Strategy
 const GoogleOIDCStrategy = require('passport-google-oidc');
 const GitHubStrategy = require('passport-github2').Strategy
 const jwt = require('jsonwebtoken')
@@ -98,6 +99,23 @@ passport.use('google', new GoogleStrategy(
     return done(null, profile);
   }
 ))
+
+passport.use('passport-oidc', new PassportOIDCStrategy(
+  {
+    issuer: 'https://accounts.google.com',
+    authorizationURL: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenURL: 'https://oauth2.googleapis.com/token',
+    userInfoURL: 'https://openidconnect.googleapis.com/v1/userinfo',
+    clientID: config.oauth.google.GOOGLE_CLIENT_ID,
+    clientSecret: config.oauth.google.GOOGLE_CLIENT_SECRET,
+    callbackURL: 'http://localhost:3000/callback-passport-oidc'
+  },
+  function verify(issuer, profile, cb) {
+    console.log(profile);
+    console.log("Google OIDC strategy");
+    return cb(null, profile);
+  })
+);
 
 passport.use('google-oidc', new GoogleOIDCStrategy(
   {
@@ -207,6 +225,34 @@ app.get('/google',
 
 app.get('/callback',
   passport.authenticate('google', { failureRedirect: '/login' }),
+  function (req, res) {
+    console.log("Google login callback")
+    const emails = req.user.emails
+    if (emails && emails.length == 1) {
+      const email = req.user.emails[0]['value']
+      // This is what ends up in our JWT
+      const jwtClaims = {
+        sub: email,
+        iss: 'localhost:3000',
+        aud: 'localhost:3000',
+        exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7×24×60×60=604800s) from now
+        role: 'user' // just to show a private JWT field
+      }
+      const token = jwt.sign(jwtClaims, jwtSecret)
+      res.cookie('token', token, { httpOnly: true, secure: true })
+
+      // Successful authentication, redirect home.
+      res.redirect('/');
+    } else {
+      res.redirect('/login');
+    }
+  });
+
+app.get('/passport-oidc',
+passport.authenticate('passport-oidc', {scope: ['email']}));
+
+app.get('/callback-passport-oidc',
+  passport.authenticate('passport-oidc', { failureRedirect: '/login' }),
   function (req, res) {
     console.log("Google login callback")
     const emails = req.user.emails
