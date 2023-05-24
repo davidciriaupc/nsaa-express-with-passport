@@ -16,6 +16,22 @@ const scryptMcf = require('scrypt-mcf')
 const { performance } = require('perf_hooks');
 const axios = require('axios')
 
+const RadiusClient = require('node-radius-client')
+const {
+  dictionaries: {
+    rfc2865: {
+      file,
+      attributes,
+    },
+  },
+} = require('node-radius-utils');
+const radius_client = new RadiusClient({
+  host: '10.0.2.8',
+  dictionaries: [
+    file,
+  ],
+});
+
 const FileDatabase = require('./database')
 const file_database = new FileDatabase('database.json')
 
@@ -142,6 +158,31 @@ passport.use('github', new GitHubStrategy({
   }
 ));
 
+passport.use('radius-strategy', new LocalStrategy(
+  {
+    usernameField: 'username',  // it MUST match the name of the input field for the username in the login HTML formulary
+    passwordField: 'password',  // it MUST match the name of the input field for the password in the login HTML formulary
+    session: false // we will store a JWT in the cookie with all the required session data. Our server does not need to keep a session, it's going to be stateless
+  },
+  function (username, password, done) {
+  // Send the RADIUS request to the server
+  radius_client.accessRequest({
+    secret: 'testing123',
+    attributes: [
+      [attributes.USER_NAME, username + "@upc.edu"], //using realm "upc.edu".
+      [attributes.USER_PASSWORD, password]
+    ],
+  }).then((result) => {
+    console.log('result', result);
+    result['username'] = username + "@upc.edu";
+    return done(null, result);
+  }).catch((error) => {
+    console.log('error', error);
+    return done(null, false);
+  });
+
+}));
+
 app.use(express.urlencoded({ extended: true })) // needed to retrieve html form fields (it's a requirement of the local strategy)
 app.use(passport.initialize())  // we load the passport auth middleware to our express application. It should be loaded before any route.
 
@@ -170,6 +211,33 @@ app.post('/login',
   passport.authenticate('username-password', { failureRedirect: '/login?authFailed=true', session: false }), // we indicate that this endpoint must pass through our 'username-password' passport strategy, which we defined before
   (req, res) => {
 
+    // This is what ends up in our JWT
+    const jwtClaims = {
+      sub: req.user.username,
+      iss: 'localhost:3000',
+      aud: 'localhost:3000',
+      exp: Math.floor(Date.now() / 1000) + 604800, // 1 week (7dias×24horas×60minutos×60segundos=604800s) from now
+      role: 'user', // just to show a private JWT field,
+      exam: 'Ciria'
+    }
+
+    // generate a signed json web token. By default the signing algorithm is HS256 (HMAC-SHA256), i.e. we will 'sign' with a symmetric secret
+    const token = jwt.sign(jwtClaims, jwtSecret)
+
+    // From now, just send the JWT directly to the browser. Later, you should send the token inside a cookie.
+    res.cookie('token', token, { httpOnly: true, secure: true })
+    res.redirect('/')
+
+    // And let us log a link to the jwt.io debugger, for easy checking/verifying:
+    console.log(`Token sent. Debug at https://jwt.io/?value=${token}`)
+    console.log(`Token secret (for verifying the signature): ${jwtSecret.toString('base64')}`)
+  }
+)
+
+app.post('/login-radius',
+  passport.authenticate('radius-strategy', { failureRedirect: '/login?authFailed=true', session: false }), // we indicate that this endpoint must pass through our 'username-password' passport strategy, which we defined before
+  (req, res) => {
+    
     // This is what ends up in our JWT
     const jwtClaims = {
       sub: req.user.username,
