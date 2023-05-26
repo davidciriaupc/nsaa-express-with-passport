@@ -1,3 +1,4 @@
+(async () => {
 const config = require('./config.json');
 const express = require('express')
 const session = require('express-session');
@@ -6,9 +7,10 @@ const passport = require('passport')
 const LocalStrategy = require('passport-local').Strategy
 const JWTStrategy = require('passport-jwt').Strategy
 const GoogleStrategy = require('passport-google-oauth20').Strategy
-const PassportOIDCStrategy = require('passport-openidconnect').Strategy
 const GoogleOIDCStrategy = require('passport-google-oidc');
 const GitHubStrategy = require('passport-github2').Strategy
+const { Issuer, Strategy } = require('openid-client');
+const OpenIDConnectStrategy = Strategy
 const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
 const fortune = require('fortune-teller')
@@ -116,22 +118,28 @@ passport.use('google', new GoogleStrategy(
   }
 ))
 
-passport.use('passport-oidc', new PassportOIDCStrategy(
-  {
-    issuer: 'https://accounts.google.com',
-    authorizationURL: 'https://accounts.google.com/o/oauth2/v2/auth',
-    tokenURL: 'https://oauth2.googleapis.com/token',
-    userInfoURL: 'https://openidconnect.googleapis.com/v1/userinfo',
-    clientID: config.oauth.google.GOOGLE_CLIENT_ID,
-    clientSecret: config.oauth.google.GOOGLE_CLIENT_SECRET,
-    callbackURL: 'http://localhost:3000/callback-passport-oidc'
-  },
-  function verify(issuer, profile, cb) {
-    console.log(profile);
-    console.log("Google OIDC strategy");
-    return cb(null, profile);
-  })
-);
+// 1. Download the issuer configuration from the well-known openid configuration (OIDC discovery)
+const oidcIssuer = await Issuer.discover(config['oauth']['google']['OIDC_PROVIDER'])
+
+// 2. Setup an OIDC client/relying party.
+const oidcClient = new oidcIssuer.Client({
+  client_id: config.oauth.google.GOOGLE_CLIENT_ID,
+  client_secret: config.oauth.google.GOOGLE_CLIENT_SECRET,
+  redirect_uris: ['http://localhost:3000/callback-passport-oidc'],
+  response_types: ['code'] // code is use for Authorization Code Grant; token for Implicit Grant
+})
+
+// 3. Configure the strategy.
+passport.use('passport-oidc-client', new OpenIDConnectStrategy({
+  client: oidcClient,
+  usePKCE: false // We are using standard Authorization Code Grant. We do not need PKCE.
+}, (tokenSet, userInfo, done) => {
+  console.log(tokenSet, userInfo)
+  if (tokenSet === undefined || userInfo === undefined) {
+    return done('no tokenSet or userInfo')
+  }
+  return done(null, userInfo)
+}))
 
 passport.use('google-oidc', new GoogleOIDCStrategy(
   {
@@ -317,15 +325,14 @@ app.get('/callback',
   });
 
 app.get('/passport-oidc',
-passport.authenticate('passport-oidc', {scope: ['email', 'openid']}));
+passport.authenticate('passport-oidc-client', {scope: 'openid email'}));
 
 app.get('/callback-passport-oidc',
-  passport.authenticate('passport-oidc', { failureRedirect: '/login' }),
+  passport.authenticate('passport-oidc-client', { failureRedirect: '/login' }),
   function (req, res) {
     console.log("Google login callback")
-    const emails = req.user.emails
-    if (emails && emails.length == 1) {
-      const email = req.user.emails[0]['value']
+    const email = req.user.email
+    if (email) {
       // This is what ends up in our JWT
       const jwtClaims = {
         sub: email,
@@ -476,3 +483,4 @@ app.use(function (err, req, res, next) {
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`)
 })
+})();

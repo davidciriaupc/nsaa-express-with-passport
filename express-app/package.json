@@ -17,13 +17,13 @@
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.10.0",
     "node-radius-client": "^1.0.0",
+    "openid-client": "^5.4.2",
     "passport": "^0.6.0",
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
     "passport-google-oidc": "^0.1.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "passport-openidconnect": "^0.1.1",
     "scrypt-mcf": "^1.0.0"
   }
 }
